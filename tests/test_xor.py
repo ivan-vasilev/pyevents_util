@@ -7,6 +7,8 @@ from pyeventsml.ml_phase import *
 from pyeventsml.events_util import *
 from pyeventsml.algo_phase import *
 
+import threading
+
 
 class TestXor(unittest.TestCase):
     """
@@ -14,6 +16,8 @@ class TestXor(unittest.TestCase):
     """
 
     def test_xor(self):
+        # logging.basicConfig(level=logging.DEBUG)
+
         global_listeners = GlobalListeners()
 
         # network definition
@@ -39,7 +43,7 @@ class TestXor(unittest.TestCase):
         train_step = tf.train.GradientDescentOptimizer(0.1).minimize(cross_entropy)
 
         correct_prediction = tf.equal(tf.argmax(hypothesis, 1), tf.argmax(target, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        accuracy_op = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
         # Start training
         init = tf.initialize_all_variables()
@@ -51,27 +55,35 @@ class TestXor(unittest.TestCase):
                 return BaseDataEvent({input_: np.array([[0, 0], [0, 1], [1, 0], [1, 1]]),
                                       target: np.array([[0, 1], [1, 0], [1, 0], [0, 1]])}, phase)
 
-            xor_data_provider += GlobalListeners()
-
+            xor_data_provider += global_listeners
             # training phase
-            AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=MLPhase.TRAINING, default_listeners=global_listeners)
+            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=MLPhase.TRAINING, default_listeners=global_listeners)
 
             # testing phase
-            AlgoPhase(model=lambda x: accuracy.eval(feed_dict=x), phase=MLPhase.TESTING, default_listeners=global_listeners)
+            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=MLPhase.TESTING, default_listeners=global_listeners)
 
-            @after
+            accuracy = {'accuracy': -1}
+
+            e = threading.Event()
+
+            TRAINING_ITERATIONS = 1000
+
             def start_testing_listener(event):
-                if isinstance(event, AfterIterationEvent) and event.phase == MLPhase.TRAINING and event.iteration == 1000:
-                    return xor_data_provider(MLPhase.TESTING)
-                elif isinstance(event, AfterIterationEvent) and event.phase == MLPhase.TESTING:
-                    self.assertEqual(event.model_output, 1)
+                if isinstance(event, AfterIterationEvent) and event.phase == MLPhase.TESTING:
+                    accuracy['accuracy'] = event.model_output
+                    e.set()
 
-            start_testing_listener += global_listeners
             global_listeners += start_testing_listener
 
-            # running
-            for i in range(1000):
+            for i in range(TRAINING_ITERATIONS):
                 xor_data_provider(MLPhase.TRAINING)
+
+            xor_data_provider(MLPhase.TESTING)
+
+            e.wait()
+            self.assertEqual(training_phase._iteration, TRAINING_ITERATIONS)
+            self.assertEqual(testing_phase._iteration, 1)
+            self.assertEqual(accuracy['accuracy'], 1)
 
 if __name__ == '__main__':
     unittest.main()
