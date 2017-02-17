@@ -1,20 +1,19 @@
 from pyevents.events import *
-from pyeventsml.base_data_event import *
 import logging
 
 
 class AlgoPhase(object):
     """Simple training/testing/evaluation class"""
 
-    def __init__(self, model, phase=None, default_listeners=None, input_event_processor=None):
+    def __init__(self, model, phase=None, default_listeners=None, event_processor=None):
         self._phase = phase
         self._model = model
         self._iteration = 0
 
-        if input_event_processor is not None:
-            self.input_event_processor = input_event_processor
+        if event_processor is not None:
+            self.input_event_processor = event_processor
         else:
-            self.input_event_processor = lambda event: event.data if isinstance(event, BaseDataEvent) and event.phase == self._phase else None
+            self.input_event_processor = self.onevent
 
         if default_listeners is not None:
             self.before_iteration += default_listeners
@@ -33,45 +32,13 @@ class AlgoPhase(object):
         self.after_iteration(data, model_output)
 
     def onevent(self, event):
-        processed_input = self.input_event_processor(event)
-        if processed_input is not None:
-            self.process(processed_input)
+        if event['type'] == 'data' and event['phase'] == self._phase:
+            self.process(event['data'])
 
     @after
     def before_iteration(self, input_data):
-        return BeforeIterationEvent(self._model, self._phase, self._iteration, input_data)
+        return {'model': self._model, 'phase': self._phase, 'iteration': self._iteration, 'model_input': input_data, 'type': 'before_iteration'}
 
     @after
     def after_iteration(self, input_data, model_output):
-        return AfterIterationEvent(self._model, self._phase, self._iteration, input_data, model_output)
-
-
-class BeforeIterationEvent(object):
-    def __init__(self, model, phase, iteration, input_data):
-        """
-        :param model: model method
-        :param phase: phase
-        :param iteration: current iteration
-        :param input_data: current input
-        """
-        self.model = model
-        self.phase = phase
-        self.iteration = iteration
-        self.input_data = input_data
-
-
-class AfterIterationEvent(object):
-
-    def __init__(self, model, phase, iteration, input_data, model_output):
-        """
-        :param model: model method
-        :param phase: phase
-        :param iteration: current iteration
-        :param input_data: current input
-        :param model_output: current output
-        """
-        self.model = model
-        self.phase = phase
-        self.iteration = iteration
-        self.input_data = input_data
-        self.model_output = model_output
+        return {'model': self._model, 'phase': self._phase, 'iteration': self._iteration, 'model_input': input_data, 'model_output': model_output, 'type': 'after_iteration'}

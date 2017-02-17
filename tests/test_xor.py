@@ -52,15 +52,19 @@ class TestXor(unittest.TestCase):
 
             @after
             def xor_data_provider(phase):
-                return BaseDataEvent({input_: np.array([[0, 0], [0, 1], [1, 0], [1, 1]]),
-                                      target: np.array([[0, 1], [1, 0], [1, 0], [0, 1]])}, phase)
+                return {'data': {input_: np.array([[0, 0], [0, 1], [1, 0], [1, 1]]),
+                                 target: np.array([[0, 1], [1, 0], [1, 0], [0, 1]])},
+                        'phase': phase,
+                        'type': 'data'}
 
             xor_data_provider += global_listeners
             # training phase
-            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=MLPhase.TRAINING, default_listeners=global_listeners)
+            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=MLPhase.TRAINING,
+                                       default_listeners=global_listeners)
 
             # testing phase
-            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=MLPhase.TESTING, default_listeners=global_listeners)
+            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess),
+                                      phase=MLPhase.TESTING, default_listeners=global_listeners)
 
             accuracy = {'accuracy': -1}
 
@@ -69,8 +73,8 @@ class TestXor(unittest.TestCase):
             TRAINING_ITERATIONS = 1000
 
             def start_testing_listener(event):
-                if isinstance(event, AfterIterationEvent) and event.phase == MLPhase.TESTING:
-                    accuracy['accuracy'] = event.model_output
+                if event['type'] == 'after_iteration' and event['phase'] == MLPhase.TESTING:
+                    accuracy['accuracy'] = event['model_output']
                     e.set()
 
             global_listeners += start_testing_listener
@@ -84,6 +88,7 @@ class TestXor(unittest.TestCase):
             self.assertEqual(training_phase._iteration, TRAINING_ITERATIONS)
             self.assertEqual(testing_phase._iteration, 1)
             self.assertEqual(accuracy['accuracy'], 1)
+
 
 if __name__ == '__main__':
     unittest.main()
