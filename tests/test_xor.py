@@ -52,7 +52,7 @@ class TestXor(unittest.TestCase):
         accuracy_op = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
         # Start training
-        init = tf.initialize_all_variables()
+        init = tf.global_variables_initializer()
         with tf.Session() as sess:
             sess.run(init)
 
@@ -128,7 +128,7 @@ class TestXor(unittest.TestCase):
         accuracy_op = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
         # Start training
-        init = tf.initialize_all_variables()
+        init = tf.global_variables_initializer()
         with tf.Session() as sess:
             sess.run(init)
 

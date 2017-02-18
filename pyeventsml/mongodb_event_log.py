@@ -6,7 +6,7 @@ from pyevents.events import *
 class MongoDBEventLogger(object):
     """Log events based on accept_event_function criteria"""
 
-    def __init__(self, mongo_collection, group_id=None, accept_event_function=None, default_listeners=None):
+    def __init__(self, mongo_collection, accept_event_function, group_id=None, default_listeners=None):
 
         self._mongo_collection = mongo_collection
 
@@ -16,10 +16,9 @@ class MongoDBEventLogger(object):
 
         if group_id is not None:
             existing_events = self.collection.find({'group_id': group_id}).sort('sequence_id', pymongo.DESCENDING).limit(1)
-            if existing_events.count() == 1:
+            if existing_events.count() > 0:
                 e = next(existing_events)
-                if e is not None:
-                    self._sequence_id = e['sequence_id'] + 1
+                self._sequence_id = e['sequence_id'] + 1
 
         self.accept_for_serialization = accept_event_function
 

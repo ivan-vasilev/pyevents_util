@@ -16,9 +16,7 @@ class TestMongoDBEventLog(unittest.TestCase):
 
         global_listeners = AsyncListeners()
 
-        collection = self.client.test_db.events
-
-        log = MongoDBEventLogger(collection, group_id=None, accept_event_function=lambda x: True, default_listeners=global_listeners)
+        log = MongoDBEventLogger(self.client.test_db.events, lambda x: True, group_id=None, default_listeners=global_listeners)
 
         @after
         def test_event(counter):
@@ -47,7 +45,7 @@ class TestMongoDBEventLog(unittest.TestCase):
         # phase 2
         global_listeners -= log.onevent
 
-        log = MongoDBEventLogger(group_id=log.group_id, accept_event_function=lambda x: True, default_listeners=global_listeners, mongo_collection=collection)
+        log = MongoDBEventLogger(self.client.test_db.events, lambda x: True, group_id=log.group_id, default_listeners=global_listeners)
 
         e3 = threading.Event()
         global_listeners += lambda x: e3.set()
@@ -67,7 +65,7 @@ class TestMongoDBEventLog(unittest.TestCase):
         self.assertEqual(i, 3)
 
         # phase 3
-        event_provider = MongoDBEventProvider(collection, log.group_id, global_listeners)
+        event_provider = MongoDBEventProvider(self.client.test_db.events, log.group_id, global_listeners)
 
         e5 = threading.Event()
 
