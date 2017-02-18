@@ -4,7 +4,6 @@ import numpy as np
 import tensorflow as tf
 from pyeventsml.ml_phase import *
 
-from pyeventsml.events_util import *
 from pyeventsml.algo_phase import *
 
 import threading
@@ -18,7 +17,7 @@ class TestXor(unittest.TestCase):
     def test_xor(self):
         # logging.basicConfig(level=logging.DEBUG)
 
-        global_listeners = GlobalListeners()
+        global_listeners = AsyncListeners()
 
         # network definition
         nb_classes = 2
