@@ -12,13 +12,14 @@ class MongoDBEventLogger(object):
 
         self.group_id = group_id if group_id is not None else uuid.uuid4()
 
+        self._sequence_id = 0
+
         if group_id is not None:
             existing_events = self.collection.find({'group_id': group_id}).sort('sequence_id', pymongo.DESCENDING).limit(1)
-            e = next(existing_events)
-            if e is not None:
-                self._sequence_id = e['sequence_id'] + 1
-        else:
-            self._sequence_id = 0
+            if existing_events.count() == 1:
+                e = next(existing_events)
+                if e is not None:
+                    self._sequence_id = e['sequence_id'] + 1
 
         self.accept_for_serialization = accept_event_function
 
