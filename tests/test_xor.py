@@ -24,7 +24,7 @@ class TestXor(unittest.TestCase):
 
         global_listeners = AsyncListeners()
 
-        MongoDBEventLogger(self.client.test_db.events, group_id='test_xor_group', accept_event_function=lambda event: event['type'] == 'data', default_listeners=global_listeners)
+        MongoDBEventLogger(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data', default_listeners=global_listeners)
 
         # network definition
         nb_classes = 2
