@@ -99,6 +99,8 @@ class TestMongoDBEventLog(unittest.TestCase):
                 self.__test_private = 'test private'
                 self.__test_numpy = np.zeros((3, 4, 5))
                 self.__test_nested = TestLogCompositeNested()
+                self.test_tuple = (123, 'abc')
+                self.test_list = [(123, 'abc'), (1, 2, 3)]
 
         global_listeners = AsyncListeners()
 
@@ -164,6 +166,9 @@ class TestMongoDBEventLog(unittest.TestCase):
                 listener_called['called'] = True
                 self.assertEqual(event['counter'], 3)
                 self.assertEqual(type(event['_TestLogComposite__test_numpy']), np.ndarray)
+                self.assertEqual(type(event['test_list']), list)
+                self.assertEqual(type(event['test_list'][0]), list)
+                self.assertEqual(type(event['test_tuple']), list)
                 e5.set()
 
         global_listeners += test_event_provider
