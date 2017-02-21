@@ -2,7 +2,6 @@ import uuid
 import pymongo
 from pyevents.events import *
 from typing import Callable
-import json
 import numpy as np
 import base64
 
@@ -68,19 +67,6 @@ def default_encoder(obj):
         return result
 
     return obj
-
-
-class DefaultEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.ndarray):
-            data_b64 = base64.b64encode(np.ascontiguousarray(obj).data)
-            return dict(__ndarray__=data_b64,
-                        dtype=str(obj.dtype),
-                        shape=obj.shape)
-        elif getattr(obj, '__dict__') is not None:
-            return obj.__dict__
-        else:
-            return super().default(obj)
 
 
 class MongoDBEventProvider(object):
