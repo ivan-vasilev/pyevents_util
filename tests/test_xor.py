@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from pyeventsml.algo_phase import *
 from pyeventsml import ml_phase
-from pyeventsml.mongodb_event_log import *
+from pyeventsml.mongodb.mongodb_event_log import *
 
 
 class TestXor(unittest.TestCase):
@@ -76,7 +76,7 @@ class TestXor(unittest.TestCase):
 
             e = threading.Event()
 
-            TRAINING_ITERATIONS = 1000
+            training_iterations = 1000
 
             def start_testing_listener(event):
                 if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TESTING:
@@ -85,13 +85,13 @@ class TestXor(unittest.TestCase):
 
             global_listeners += start_testing_listener
 
-            for i in range(TRAINING_ITERATIONS):
+            for i in range(training_iterations):
                 xor_data_provider(ml_phase.TRAINING)
 
             xor_data_provider(ml_phase.TESTING)
 
             e.wait()
-            self.assertEqual(training_phase._iteration, TRAINING_ITERATIONS)
+            self.assertEqual(training_phase._iteration, training_iterations)
             self.assertEqual(testing_phase._iteration, 1)
             self.assertEqual(accuracy['accuracy'], 1)
 
