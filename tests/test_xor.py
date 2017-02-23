@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from pyeventsml.algo_phase import *
 from pyeventsml import ml_phase
-from pyeventsml.mongodb.mongodb_event_log import *
+from pyeventsml.mongodb.mongodb_sequence_log import *
 
 
 class TestXor(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestXor(unittest.TestCase):
 
         global_listeners = AsyncListeners()
 
-        MongoDBEventLogger(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data', default_listeners=global_listeners)
+        MongoDBSequenceLog(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data', default_listeners=global_listeners)
 
         # network definition
         nb_classes = 2
@@ -153,7 +153,7 @@ class TestXor(unittest.TestCase):
 
             global_listeners += start_testing_listener
 
-            MongoDBEventProvider(self.client.test_db.events, group_id='test_xor_group', default_listeners=global_listeners)()
+            MongoDBSequenceProvider(self.client.test_db.events, group_id='test_xor_group', default_listeners=global_listeners)()
 
             e.wait()
             self.assertEqual(training_phase._iteration, TRAINING_ITERATIONS)

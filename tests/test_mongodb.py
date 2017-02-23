@@ -1,6 +1,6 @@
 import unittest
 
-from pyeventsml.mongodb.mongodb_event_log import *
+from pyeventsml.mongodb.mongodb_sequence_log import *
 
 from pyeventsml.mongodb.mongodb_store import *
 
@@ -18,7 +18,7 @@ class TestMongoDBEventLog(unittest.TestCase):
 
         global_listeners = AsyncListeners()
 
-        log = MongoDBEventLogger(self.client.test_db.events, lambda x: True, group_id=None, default_listeners=global_listeners)
+        log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True, group_id=None, default_listeners=global_listeners)
 
         @after
         def test_event(_id):
@@ -40,8 +40,8 @@ class TestMongoDBEventLog(unittest.TestCase):
         q_events = self.client.test_db.events.find({'group_id': log.group_id}).sort('sequence_id', pymongo.ASCENDING)
         for i, e in enumerate(q_events):
             self.assertEqual(e['sequence_id'], i)
-            self.assertEqual(e['event']['_id'], i)
-            event = mongoutil.default_decoder(e['event'])
+            self.assertEqual(e['obj']['_id'], i)
+            event = mongoutil.default_decoder(e['obj'])
             self.assertTrue(isinstance(event['test_numpy'], np.ndarray))
             self.assertEqual(event['test_numpy'].shape, (2, 3))
 
@@ -50,7 +50,7 @@ class TestMongoDBEventLog(unittest.TestCase):
         # phase 2
         global_listeners -= log.onevent
 
-        log = MongoDBEventLogger(self.client.test_db.events, lambda x: True, group_id=log.group_id, default_listeners=global_listeners)
+        log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True, group_id=log.group_id, default_listeners=global_listeners)
 
         e3 = threading.Event()
         global_listeners += lambda x: e3.set()
@@ -65,12 +65,12 @@ class TestMongoDBEventLog(unittest.TestCase):
         q_events = self.client.test_db.events.find({'group_id': log.group_id}).sort('sequence_id', pymongo.ASCENDING)
         for i, e in enumerate(q_events):
             self.assertEqual(e['sequence_id'], i)
-            self.assertEqual(e['event']['_id'], i)
+            self.assertEqual(e['obj']['_id'], i)
 
         self.assertEqual(i, 3)
 
         # phase 3
-        event_provider = MongoDBEventProvider(self.client.test_db.events, log.group_id, default_listeners=global_listeners)
+        event_provider = MongoDBSequenceProvider(self.client.test_db.events, log.group_id, default_listeners=global_listeners)
 
         e5 = threading.Event()
 
@@ -95,7 +95,7 @@ class TestMongoDBEventLog(unittest.TestCase):
 
         global_listeners = AsyncListeners()
 
-        log = MongoDBEventLogger(self.client.test_db.events, lambda x: True, group_id=None, default_listeners=global_listeners)
+        log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True, group_id=None, default_listeners=global_listeners)
 
         @after
         def test_event(_id):
@@ -117,7 +117,7 @@ class TestMongoDBEventLog(unittest.TestCase):
         q_events = self.client.test_db.events.find({'group_id': log.group_id}).sort('sequence_id', pymongo.ASCENDING)
         for i, e in enumerate(q_events):
             self.assertEqual(e['sequence_id'], i)
-            obj = mongoutil.default_decoder(e['event'])
+            obj = mongoutil.default_decoder(e['obj'])
             self.assertEqual(obj._id, i)
             self.assertEqual(type(obj._test_numpy), np.ndarray)
 
@@ -126,7 +126,7 @@ class TestMongoDBEventLog(unittest.TestCase):
         # phase 2
         global_listeners -= log.onevent
 
-        log = MongoDBEventLogger(self.client.test_db.events, lambda x: True, group_id=log.group_id, default_listeners=global_listeners)
+        log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True, group_id=log.group_id, default_listeners=global_listeners)
 
         e3 = threading.Event()
         global_listeners += lambda x: e3.set()
@@ -141,14 +141,14 @@ class TestMongoDBEventLog(unittest.TestCase):
         q_events = self.client.test_db.events.find({'group_id': log.group_id}).sort('sequence_id', pymongo.ASCENDING)
         for i, e in enumerate(q_events):
             self.assertEqual(e['sequence_id'], i)
-            obj = mongoutil.default_decoder(e['event'])
+            obj = mongoutil.default_decoder(e['obj'])
             self.assertEqual(obj._id, i)
             self.assertEqual(type(obj._test_numpy), np.ndarray)
 
         self.assertEqual(i, 3)
 
         # phase 3
-        event_provider = MongoDBEventProvider(self.client.test_db.events, log.group_id, default_listeners=global_listeners)
+        event_provider = MongoDBSequenceProvider(self.client.test_db.events, log.group_id, default_listeners=global_listeners)
 
         e5 = threading.Event()
 
@@ -189,12 +189,12 @@ class TestMongoDBEventLog(unittest.TestCase):
 
         # phase 1
         e1 = threading.Event()
-        store.store += lambda x: e1.set()
+        store.object_stored += lambda x: e1.set()
         test_event(0)
         e1.wait()
 
         e2 = threading.Event()
-        store.store += lambda x: e2.set()
+        store.object_stored += lambda x: e2.set()
         test_event(1)
         e2.wait()
 
@@ -209,7 +209,7 @@ class TestMongoDBEventLog(unittest.TestCase):
         obj._test_numpy[0, 0, 0] = 5
 
         e3 = threading.Event()
-        store.store += lambda x: e3.set()
+        store.object_stored += lambda x: e3.set()
         store.store(obj)
         e3.wait()
 

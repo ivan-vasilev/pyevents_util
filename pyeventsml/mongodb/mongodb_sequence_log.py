@@ -10,12 +10,12 @@ import pyeventsml.mongodb.util as mongoutil
 from pyevents.events import *
 
 
-class MongoDBEventLogger(object):
+class MongoDBSequenceLog(object):
     """Log events based on accept_event_function criteria"""
 
     def __init__(self, mongo_collection, accept_for_serialization: Callable, group_id=None, encoder: Callable = None, default_listeners=None):
 
-        self._mongo_collection = mongo_collection
+        self.collection = mongo_collection
 
         self.group_id = group_id if group_id is not None else uuid.uuid4()
 
@@ -34,19 +34,12 @@ class MongoDBEventLogger(object):
         if default_listeners is not None:
             default_listeners += self.onevent
 
-    @property
-    def collection(self):
-        if self._mongo_collection is None:
-            self._mongo_collection = pymongo.MongoClient().db.events
-
-        return self._mongo_collection
-
-    def store(self, event):
+    def store(self, obj):
         try:
-            self.collection.insert({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'event': event if self._encoder is None else self._encoder(event)})
+            self.collection.insert({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'obj': obj if self._encoder is None else self._encoder(obj)})
             logging.getLogger(__name__).debug("Log json event")
         except (BSONError, TypeError):
-            self.collection.insert({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'event': Binary(pickle.dumps(event))})
+            self.collection.insert({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'obj': Binary(pickle.dumps(obj))})
             logging.getLogger(__name__).debug("Failed to serialize json. Falling back to binary serialization")
 
         self._sequence_id += 1
@@ -56,7 +49,7 @@ class MongoDBEventLogger(object):
             self.store(event)
 
 
-class MongoDBEventProvider(object):
+class MongoDBSequenceProvider(object):
     """Fire logged events"""
 
     def __init__(self, mongo_collection, group_id, decoder: Callable = None, default_listeners=None):
@@ -76,4 +69,4 @@ class MongoDBEventProvider(object):
 
     def __call__(self):
         for e in self._mongo_collection.find({'group_id': self.group_id}).sort('sequence_id', pymongo.ASCENDING):
-            self.fire_event(e['event'] if self._decoder is None else self._decoder(e['event']))
+            self.fire_event(e['obj'] if self._decoder is None else self._decoder(e['obj']))
