@@ -2,9 +2,9 @@ import unittest
 
 import tensorflow as tf
 
-from pyeventsml.algo_phase import *
-from pyeventsml import ml_phase
-from pyeventsml.mongodb.mongodb_sequence_log import *
+from pyevents_util.algo_phase import *
+from pyevents_util import ml_phase
+from pyevents_util.mongodb.mongodb_sequence_log import *
 
 
 class TestXor(unittest.TestCase):

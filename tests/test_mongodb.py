@@ -1,11 +1,11 @@
 import unittest
 
-from pyeventsml.mongodb.mongodb_sequence_log import *
+from pyevents_util.mongodb.mongodb_sequence_log import *
 
-from pyeventsml.mongodb.mongodb_store import *
+from pyevents_util.mongodb.mongodb_store import *
 
 
-class TestMongoDBEventLog(unittest.TestCase):
+class TestMongoDB(unittest.TestCase):
     """
     MongoDB event log
     """
@@ -99,7 +99,7 @@ class TestMongoDBEventLog(unittest.TestCase):
 
         @after
         def test_event(_id):
-            return TestMongoDBEventLog.TestLogComposite(_id)
+            return TestMongoDB.TestLogComposite(_id)
 
         test_event += global_listeners
 
@@ -183,7 +183,7 @@ class TestMongoDBEventLog(unittest.TestCase):
 
         @after
         def test_event(_id):
-            return {'data': TestMongoDBEventLog.TestLogComposite(_id)}
+            return {'data': TestMongoDB.TestLogComposite(_id)}
 
         test_event += global_listeners
 
@@ -231,7 +231,7 @@ class TestMongoDBEventLog(unittest.TestCase):
             self._id = _id
             self._test_private = 'test private'
             self._test_numpy = np.zeros((3, 4, 5))
-            self._test_nested = TestMongoDBEventLog.TestLogCompositeNested()
+            self._test_nested = TestMongoDB.TestLogCompositeNested()
             self.test_tuple = (123, 'abc')
             self.test_list = [(123, 'abc'), (1, 2, 3)]
 

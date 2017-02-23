@@ -1,4 +1,4 @@
-from pyeventsml.mongodb.util import *
+from pyevents_util.mongodb.util import *
 import pymongo
 from pyevents.events import *
 from bson.binary import Binary

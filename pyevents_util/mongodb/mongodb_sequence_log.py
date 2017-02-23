@@ -6,7 +6,7 @@ import pymongo
 from bson.binary import Binary
 from bson.errors import BSONError
 
-import pyeventsml.mongodb.util as mongoutil
+import pyevents_util.mongodb.util as mongoutil
 from pyevents.events import *
 
 
