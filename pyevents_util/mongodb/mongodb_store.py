@@ -1,12 +1,13 @@
 from pyevents_util.mongodb.util import *
 import pymongo
-from pyevents.events import *
+import pyevents.events as events
 from bson.binary import Binary
 from bson.errors import BSONError
 from typing import Callable
+import logging
 
 
-class MongoDBStore(object):
+class MongoDBStore(object, metaclass=events.GlobalRegister):
     """Save object manager based on accept_event_function criteria"""
 
     def __init__(self, mongo_collection, accept_for_serialization: Callable, encoder: Callable = None, default_listeners=None):
@@ -27,6 +28,7 @@ class MongoDBStore(object):
 
         return self._mongo_collection
 
+    @events.listener
     def onevent(self, event):
         if self.accept_for_serialization(event):
             self.store(event['data'])
@@ -46,7 +48,7 @@ class MongoDBStore(object):
 
         self.object_stored(obj)
 
-    @after
+    @events.after
     def object_stored(self, obj):
         return {'type': 'store_object', 'data': obj}
 

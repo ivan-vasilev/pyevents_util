@@ -1,9 +1,10 @@
+import threading
 import unittest
 
 import tensorflow as tf
 
-from pyevents_util.algo_phase import *
 from pyevents_util import ml_phase
+from pyevents_util.algo_phase import *
 from pyevents_util.mongodb.mongodb_sequence_log import *
 
 
@@ -16,15 +17,18 @@ class TestXor(unittest.TestCase):
         self.client = pymongo.MongoClient()
 
     def test_xor(self):
+        events.use_global_event_bus()
+
         self._test_event_logger()
+        events.reset()
+        events.use_global_event_bus()
+
         self._test_event_provider()
 
     def _test_event_logger(self):
         # logging.basicConfig(level=logging.DEBUG)
 
-        global_listeners = AsyncListeners()
-
-        MongoDBSequenceLog(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data', default_listeners=global_listeners)
+        MongoDBSequenceLog(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data')
 
         # network definition
         nb_classes = 2
@@ -56,21 +60,18 @@ class TestXor(unittest.TestCase):
         with tf.Session() as sess:
             sess.run(init)
 
-            @after
+            @events.after
             def xor_data_provider(phase):
                 return {'data': {'input:0': [[0, 0], [0, 1], [1, 0], [1, 1]],
                                  'target:0': [[0, 1], [1, 0], [1, 0], [0, 1]]},
                         'phase': phase,
                         'type': 'data'}
 
-            xor_data_provider += global_listeners
             # training phase
-            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=ml_phase.TRAINING,
-                                       default_listeners=global_listeners)
+            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=ml_phase.TRAINING)
 
             # testing phase
-            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess),
-                                      phase=ml_phase.TESTING, default_listeners=global_listeners)
+            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
 
             accuracy = {'accuracy': -1}
 
@@ -78,12 +79,11 @@ class TestXor(unittest.TestCase):
 
             training_iterations = 1000
 
+            @events.listener
             def start_testing_listener(event):
                 if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TESTING:
                     accuracy['accuracy'] = event['model_output']
                     e.set()
-
-            global_listeners += start_testing_listener
 
             for i in range(training_iterations):
                 xor_data_provider(ml_phase.TRAINING)
@@ -100,8 +100,6 @@ class TestXor(unittest.TestCase):
     def _test_event_provider(self):
         # logging.basicConfig(level=logging.DEBUG)
 
-        global_listeners = AsyncListeners()
-
         # network definition
         nb_classes = 2
         input_ = tf.placeholder(tf.float32,
@@ -133,12 +131,10 @@ class TestXor(unittest.TestCase):
             sess.run(init)
 
             # training phase
-            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=ml_phase.TRAINING,
-                                       default_listeners=global_listeners)
+            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=ml_phase.TRAINING)
 
             # testing phase
-            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess),
-                                      phase=ml_phase.TESTING, default_listeners=global_listeners)
+            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
 
             accuracy = {'accuracy': -1}
 
@@ -146,14 +142,13 @@ class TestXor(unittest.TestCase):
 
             TRAINING_ITERATIONS = 1000
 
+            @events.listener
             def start_testing_listener(event):
                 if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TESTING:
                     accuracy['accuracy'] = event['model_output']
                     e.set()
 
-            global_listeners += start_testing_listener
-
-            MongoDBSequenceProvider(self.client.test_db.events, group_id='test_xor_group', default_listeners=global_listeners)()
+            MongoDBSequenceProvider(self.client.test_db.events, group_id='test_xor_group')()
 
             e.wait()
             self.assertEqual(training_phase._iteration, TRAINING_ITERATIONS)
