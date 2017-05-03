@@ -18,23 +18,25 @@ class AlgoPhase(object, metaclass=events.GlobalRegister):
     def process(self, data):
         self._iteration += 1
 
-        self.before_iteration(data)
+        self.before_iteration({'model': self._model, 'phase': self._phase, 'iteration': self._iteration, 'model_input': data})
 
         logging.getLogger(__name__).debug("Phase " + str(self._phase) + " iteration " + str(self._iteration))
 
         model_output = self._model(data)
 
-        self.after_iteration(data, model_output)
+        self.after_iteration({'model': self._model, 'phase': self._phase, 'iteration': self._iteration, 'model_input': data, 'model_output': model_output})
 
     @events.listener
     def onevent(self, event):
-        if event['type'] == 'data' and event['phase'] == self._phase:
+        if event['type'] == 'data' and 'phase' in event and event['phase'] == self._phase:
             self.process(event['data'])
 
     @events.after
-    def before_iteration(self, input_data):
-        return {'model': self._model, 'phase': self._phase, 'iteration': self._iteration, 'model_input': input_data, 'type': 'before_iteration'}
+    def before_iteration(self, event):
+        event['type'] = 'before_iteration'
+        return event
 
     @events.after
-    def after_iteration(self, input_data, model_output):
-        return {'model': self._model, 'phase': self._phase, 'iteration': self._iteration, 'model_input': input_data, 'model_output': model_output, 'type': 'after_iteration'}
+    def after_iteration(self, event):
+        event['type'] = 'after_iteration'
+        return event
