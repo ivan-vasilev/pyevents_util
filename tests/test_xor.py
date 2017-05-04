@@ -26,8 +26,6 @@ class TestXor(unittest.TestCase):
         self._test_event_provider()
 
     def _test_event_logger(self):
-        # logging.basicConfig(level=logging.DEBUG)
-
         MongoDBSequenceLog(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data')
 
         # network definition
@@ -73,27 +71,43 @@ class TestXor(unittest.TestCase):
             # testing phase
             testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
 
-            accuracy = {'accuracy': -1}
-
-            e = threading.Event()
+            evaluations = {'accuracy': -1, 'training_iterations': -1, 'testing_iterations': -1}
 
             training_iterations = 1000
 
+            e1 = threading.Event()
+
             @events.listener
-            def start_testing_listener(event):
+            def end_training_listener(event):
+                if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TRAINING:
+                    evaluations['training_iterations'] = event['iteration']
+
+                    if event['iteration'] == training_iterations:
+                        e1.set()
+
+            e2 = threading.Event()
+
+            @events.listener
+            def end_testing_listener(event):
                 if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TESTING:
-                    accuracy['accuracy'] = event['model_output']
-                    e.set()
+                    evaluations['testing_iterations'] = event['iteration']
+                    evaluations['accuracy'] = event['model_output']
+                    e2.set()
 
             for i in range(training_iterations):
                 xor_data_provider(ml_phase.TRAINING)
 
+            e1.wait()
+
             xor_data_provider(ml_phase.TESTING)
 
-            e.wait()
+            e2.wait()
+
             self.assertEqual(training_phase._iteration, training_iterations)
+            self.assertEqual(evaluations['training_iterations'], training_iterations)
             self.assertEqual(testing_phase._iteration, 1)
-            self.assertEqual(accuracy['accuracy'], 1)
+            self.assertEqual(evaluations['testing_iterations'], 1)
+            self.assertEqual(evaluations['accuracy'], 1)
 
         tf.reset_default_graph()
 
@@ -130,30 +144,48 @@ class TestXor(unittest.TestCase):
         with tf.Session() as sess:
             sess.run(init)
 
+            e1 = threading.Event()
+            e2 = threading.Event()
+
             # training phase
             training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=ml_phase.TRAINING)
 
             # testing phase
-            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
+            class WaitingAlgoPhase(AlgoPhase):
+                def process(self, data):
+                    e1.wait()
+                    super().process(data)
 
-            accuracy = {'accuracy': -1}
+            testing_phase = WaitingAlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
 
-            e = threading.Event()
+            evaluations = {'accuracy': -1, 'training_iterations': -1, 'testing_iterations': -1}
 
-            TRAINING_ITERATIONS = 1000
+            training_iterations = 1000
 
             @events.listener
-            def start_testing_listener(event):
+            def end_training_listener(event):
+                if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TRAINING:
+                    evaluations['training_iterations'] = event['iteration']
+
+                    if event['iteration'] == training_iterations:
+                        e1.set()
+
+            @events.listener
+            def end_testing_listener(event):
                 if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TESTING:
-                    accuracy['accuracy'] = event['model_output']
-                    e.set()
+                    evaluations['testing_iterations'] = event['iteration']
+                    evaluations['accuracy'] = event['model_output']
+                    e2.set()
 
             MongoDBSequenceProvider(self.client.test_db.events, group_id='test_xor_group')()
 
-            e.wait()
-            self.assertEqual(training_phase._iteration, TRAINING_ITERATIONS)
+            e2.wait()
+
+            self.assertEqual(training_phase._iteration, training_iterations)
+            self.assertEqual(evaluations['training_iterations'], training_iterations)
             self.assertEqual(testing_phase._iteration, 1)
-            self.assertEqual(accuracy['accuracy'], 1)
+            self.assertEqual(evaluations['testing_iterations'], 1)
+            self.assertEqual(evaluations['accuracy'], 1)
 
         tf.reset_default_graph()
 

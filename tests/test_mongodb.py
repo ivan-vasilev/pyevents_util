@@ -15,7 +15,6 @@ class TestMongoDB(unittest.TestCase):
         events.reset()
 
     def test_event_log_with_dict(self):
-        # logging.basicConfig(level=logging.DEBUG)
         events.use_global_event_bus()
 
         log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True if x['type'] == 'data' else False, group_id=None)
@@ -26,12 +25,12 @@ class TestMongoDB(unittest.TestCase):
 
         # phase 1
         e1 = threading.Event()
-        events.listener(lambda x: e1.set())
+        events.listener(lambda x: e1.set() if x['type'] == 'store_object' else None)
         test_event(0)
         e1.wait()
 
         e2 = threading.Event()
-        events.listener(lambda x: e2.set())
+        events.listener(lambda x: e2.set() if x['type'] == 'store_object' else None)
         test_event(1)
         e2.wait()
 
@@ -48,15 +47,15 @@ class TestMongoDB(unittest.TestCase):
         # phase 2
         events.after.default_listeners -= log.onevent
 
-        log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True, group_id=log.group_id)
+        log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True if x['type'] == 'data' else False, group_id=log.group_id)
 
         e3 = threading.Event()
-        events.listener(lambda x: e3.set())
+        events.listener(lambda x: e3.set() if x['type'] == 'store_object' else None)
         test_event(2)
         e3.wait()
 
         e4 = threading.Event()
-        events.listener(lambda x: e4.set())
+        events.listener(lambda x: e4.set() if x['type'] == 'store_object' else None)
         test_event(3)
         e4.wait()
 
@@ -76,7 +75,7 @@ class TestMongoDB(unittest.TestCase):
 
         @events.listener
         def test_event_provider(event):
-            if event['_id'] == 3:
+            if '_id' in event and event['_id'] == 3:
                 listener_called['called'] = True
                 self.assertEqual(event['_id'], 3)
                 e5.set()
@@ -88,12 +87,11 @@ class TestMongoDB(unittest.TestCase):
         self.assertTrue(listener_called['called'])
 
     def test_event_log_with_composite_objects(self):
-        # logging.basicConfig(level=logging.DEBUG)
-
         global_listeners = events.AsyncListeners()
 
-        log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True, group_id=None)
+        log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True if isinstance(x, TestMongoDB.TestLogComposite) else False, group_id=None)
         global_listeners += log.onevent
+        log.object_stored += global_listeners
 
         @events.after
         def test_event(_id):
@@ -103,12 +101,13 @@ class TestMongoDB(unittest.TestCase):
 
         # phase 1
         e1 = threading.Event()
-        global_listeners += lambda x: e1.set()
+        global_listeners += lambda x: e1.set() if isinstance(x, dict) and x['type'] == 'store_object' else None
+
         test_event(0)
         e1.wait()
 
         e2 = threading.Event()
-        global_listeners += lambda x: e2.set()
+        global_listeners += lambda x: e2.set() if isinstance(x, dict) and x['type'] == 'store_object' else None
         test_event(1)
         e2.wait()
 
@@ -124,16 +123,17 @@ class TestMongoDB(unittest.TestCase):
         # phase 2
         global_listeners -= log.onevent
 
-        log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True, group_id=log.group_id)
+        log = MongoDBSequenceLog(self.client.test_db.events, lambda x: True if isinstance(x, TestMongoDB.TestLogComposite) else False, group_id=log.group_id)
         global_listeners += log.onevent
+        log.object_stored += global_listeners
 
         e3 = threading.Event()
-        global_listeners += lambda x: e3.set()
+        global_listeners += lambda x: e3.set() if isinstance(x, dict) and x['type'] == 'store_object' else None
         test_event(2)
         e3.wait()
 
         e4 = threading.Event()
-        global_listeners += lambda x: e4.set()
+        global_listeners += lambda x: e4.set() if isinstance(x, dict) and x['type'] == 'store_object' else None
         test_event(3)
         e4.wait()
 
@@ -155,16 +155,17 @@ class TestMongoDB(unittest.TestCase):
         listener_called = {'called': False}
 
         def test_event_provider(event):
-            obj = mongoutil.default_decoder(event)
-            if obj._id == 3:
-                listener_called['called'] = True
+            if isinstance(event, TestMongoDB.TestLogComposite):
+                obj = mongoutil.default_decoder(event)
+                if obj._id == 3:
+                    listener_called['called'] = True
 
-                self.assertEqual(type(obj._test_numpy), np.ndarray)
+                    self.assertEqual(type(obj._test_numpy), np.ndarray)
 
-                self.assertEqual(type(obj.test_list), list)
-                self.assertEqual(type(obj.test_list[0]), tuple)
-                self.assertEqual(type(obj.test_tuple), tuple)
-                e5.set()
+                    self.assertEqual(type(obj.test_list), list)
+                    self.assertEqual(type(obj.test_list[0]), tuple)
+                    self.assertEqual(type(obj.test_tuple), tuple)
+                    e5.set()
 
         global_listeners += test_event_provider
 

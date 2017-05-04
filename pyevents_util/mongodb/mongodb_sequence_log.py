@@ -42,10 +42,16 @@ class MongoDBSequenceLog(object, metaclass=events.GlobalRegister):
 
         self._sequence_id += 1
 
+        self.object_stored(obj)
+
     @events.listener
     def onevent(self, event):
         if self.accept_for_serialization(event):
             self.store(event)
+
+    @events.after
+    def object_stored(self, obj):
+        return {'type': 'store_object', 'data': obj}
 
 
 class MongoDBSequenceProvider(object, metaclass=events.GlobalRegister):
