@@ -1,5 +1,6 @@
 import pyevents.events as events
 import logging
+import threading
 
 
 class AlgoPhase(object, metaclass=events.GlobalRegister):
@@ -9,6 +10,7 @@ class AlgoPhase(object, metaclass=events.GlobalRegister):
         self._phase = phase
         self._model = model
         self._iteration = 0
+        self._lock = threading.RLock()
 
         if event_processor is not None:
             self.input_event_processor = event_processor
@@ -16,15 +18,17 @@ class AlgoPhase(object, metaclass=events.GlobalRegister):
             self.input_event_processor = self.onevent
 
     def process(self, data):
-        self._iteration += 1
+        with self._lock:
+            self._iteration += 1
+            iteration = self._iteration
 
-        self.before_iteration({'model': self._model, 'phase': self._phase, 'iteration': self._iteration, 'model_input': data})
+        self.before_iteration({'model': self._model, 'phase': self._phase, 'iteration': iteration, 'model_input': data})
 
-        logging.getLogger(__name__).debug("Phase " + str(self._phase) + " iteration " + str(self._iteration))
+        logging.getLogger(__name__).debug("Phase " + str(self._phase) + " iteration " + str(iteration))
 
         model_output = self._model(data)
 
-        self.after_iteration({'model': self._model, 'phase': self._phase, 'iteration': self._iteration, 'model_input': data, 'model_output': model_output})
+        self.after_iteration({'model': self._model, 'phase': self._phase, 'iteration': iteration, 'model_input': data, 'model_output': model_output})
 
     @events.listener
     def onevent(self, event):
