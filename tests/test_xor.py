@@ -1,4 +1,3 @@
-import threading
 import unittest
 
 import tensorflow as tf
@@ -26,7 +25,11 @@ class TestXor(unittest.TestCase):
         self._test_event_provider()
 
     def _test_event_logger(self):
-        MongoDBSequenceLog(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data')
+        MongoDBSequenceLog(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data' and 'phase' in event and event['phase'].endswith('_unordered'))
+
+        training_iterations = 1000
+
+        AlgoPhaseEventsOrder(phases=[(ml_phase.TRAINING, training_iterations), (ml_phase.TESTING, 1), (None, 0)])
 
         # network definition
         nb_classes = 2
@@ -62,7 +65,7 @@ class TestXor(unittest.TestCase):
             def xor_data_provider(phase):
                 return {'data': {'input:0': [[0, 0], [0, 1], [1, 0], [1, 1]],
                                  'target:0': [[0, 1], [1, 0], [1, 0], [0, 1]]},
-                        'phase': phase,
+                        'phase': phase + '_unordered',
                         'type': 'data'}
 
             # training phase
@@ -73,17 +76,10 @@ class TestXor(unittest.TestCase):
 
             evaluations = {'accuracy': -1, 'training_iterations': -1, 'testing_iterations': -1}
 
-            training_iterations = 1000
-
-            e1 = threading.Event()
-
             @events.listener
             def end_training_listener(event):
                 if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TRAINING:
                     evaluations['training_iterations'] = event['iteration']
-
-                    if event['iteration'] == training_iterations:
-                        e1.set()
 
             e2 = threading.Event()
 
@@ -96,8 +92,6 @@ class TestXor(unittest.TestCase):
 
             for i in range(training_iterations):
                 xor_data_provider(ml_phase.TRAINING)
-
-            e1.wait()
 
             xor_data_provider(ml_phase.TESTING)
 
@@ -112,7 +106,9 @@ class TestXor(unittest.TestCase):
         tf.reset_default_graph()
 
     def _test_event_provider(self):
-        # logging.basicConfig(level=logging.DEBUG)
+        training_iterations = 1000
+
+        AlgoPhaseEventsOrder(phases=[(ml_phase.TRAINING, training_iterations), (ml_phase.TESTING, 1), (None, 0)])
 
         # network definition
         nb_classes = 2
@@ -159,8 +155,6 @@ class TestXor(unittest.TestCase):
             testing_phase = WaitingAlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
 
             evaluations = {'accuracy': -1, 'training_iterations': -1, 'testing_iterations': -1}
-
-            training_iterations = 1000
 
             @events.listener
             def end_training_listener(event):

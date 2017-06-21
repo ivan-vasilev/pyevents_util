@@ -34,10 +34,10 @@ class MongoDBSequenceLog(object, metaclass=events.GlobalRegister):
 
     def store(self, obj):
         try:
-            self.collection.insert({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'obj': obj if self._encoder is None else self._encoder(obj)})
+            self.collection.insert_one({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'obj': obj if self._encoder is None else self._encoder(obj)})
             logging.getLogger(__name__).debug("Log json event")
         except (BSONError, TypeError):
-            self.collection.insert({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'obj': Binary(pickle.dumps(obj))})
+            self.collection.insert_one({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'obj': Binary(pickle.dumps(obj))})
             logging.getLogger(__name__).debug("Failed to serialize json. Falling back to binary serialization")
 
         self._sequence_id += 1
