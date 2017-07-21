@@ -5,6 +5,7 @@ import tensorflow as tf
 from pyevents_util import ml_phase
 from pyevents_util.algo_phase import *
 from pyevents_util.mongodb.mongodb_sequence_log import *
+import numpy as np
 
 
 class TestXor(unittest.TestCase):
@@ -27,34 +28,30 @@ class TestXor(unittest.TestCase):
     def _test_event_logger(self):
         MongoDBSequenceLog(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data' and 'phase' in event and event['phase'].endswith('_unordered'))
 
-        training_iterations = 1000
+        training_iterations = 100
 
         AlgoPhaseEventsOrder(phases=[(ml_phase.TRAINING, training_iterations), (ml_phase.TESTING, 1), (None, 0)])
 
         # network definition
-        nb_classes = 2
         input_ = tf.placeholder(tf.float32,
                                 shape=[None, 2],
                                 name="input")
         target = tf.placeholder(tf.float32,
-                                shape=[None, nb_classes],
+                                shape=[None, 1],
                                 name="target")
         nb_hidden_nodes = 4
-        # enc = tf.one_hot([0, 1], 2)
-        w1 = tf.Variable(tf.random_uniform([2, nb_hidden_nodes], -1, 1, seed=0),
-                         name="Weights1")
-        w2 = tf.Variable(tf.random_uniform([nb_hidden_nodes, nb_classes], -1, 1,
-                                           seed=0),
-                         name="Weights2")
-        b1 = tf.Variable(tf.zeros([nb_hidden_nodes]), name="Biases1")
-        b2 = tf.Variable(tf.zeros([nb_classes]), name="Biases2")
-        activation2 = tf.sigmoid(tf.matmul(input_, w1) + b1)
-        hypothesis = tf.nn.softmax(tf.matmul(activation2, w2) + b2)
-        cross_entropy = -tf.reduce_sum(target * tf.log(hypothesis))
-        train_step = tf.train.GradientDescentOptimizer(0.1).minimize(cross_entropy)
 
-        correct_prediction = tf.equal(tf.argmax(hypothesis, 1), tf.argmax(target, 1))
+        dense1 = tf.layers.dense(inputs=input_, units=nb_hidden_nodes, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+        logits = tf.layers.dense(inputs=dense1, units=1, activation=None, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+        loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=target, logits=logits)
+
+        correct_prediction = tf.equal(tf.argmax(tf.nn.softmax(logits), 1), tf.argmax(target, 1))
+
         accuracy_op = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+        train_step = tf.train.AdagradOptimizer(0.05).minimize(loss)
 
         # Start training
         init = tf.global_variables_initializer()
@@ -64,7 +61,7 @@ class TestXor(unittest.TestCase):
             @events.after
             def xor_data_provider(phase):
                 return {'data': {'input:0': [[0, 0], [0, 1], [1, 0], [1, 1]],
-                                 'target:0': [[0, 1], [1, 0], [1, 0], [0, 1]]},
+                                 'target:0': [[0], [1], [1], [0]]},
                         'phase': phase + '_unordered',
                         'type': 'data'}
 
@@ -74,12 +71,7 @@ class TestXor(unittest.TestCase):
             # testing phase
             testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
 
-            evaluations = {'accuracy': -1, 'training_iterations': -1, 'testing_iterations': -1}
-
-            @events.listener
-            def end_training_listener(event):
-                if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TRAINING:
-                    evaluations['training_iterations'] = event['iteration']
+            evaluations = {'accuracy': -1}
 
             e2 = threading.Event()
 
@@ -98,42 +90,36 @@ class TestXor(unittest.TestCase):
             e2.wait()
 
             self.assertEqual(training_phase._iteration, training_iterations)
-            self.assertEqual(evaluations['training_iterations'], training_iterations)
             self.assertEqual(testing_phase._iteration, 1)
-            self.assertEqual(evaluations['testing_iterations'], 1)
             self.assertEqual(evaluations['accuracy'], 1)
 
         tf.reset_default_graph()
 
     def _test_event_provider(self):
-        training_iterations = 1000
+        training_iterations = 100
 
         AlgoPhaseEventsOrder(phases=[(ml_phase.TRAINING, training_iterations), (ml_phase.TESTING, 1), (None, 0)])
 
         # network definition
-        nb_classes = 2
         input_ = tf.placeholder(tf.float32,
                                 shape=[None, 2],
                                 name="input")
         target = tf.placeholder(tf.float32,
-                                shape=[None, nb_classes],
+                                shape=[None, 1],
                                 name="target")
         nb_hidden_nodes = 4
-        # enc = tf.one_hot([0, 1], 2)
-        w1 = tf.Variable(tf.random_uniform([2, nb_hidden_nodes], -1, 1, seed=0),
-                         name="Weights1")
-        w2 = tf.Variable(tf.random_uniform([nb_hidden_nodes, nb_classes], -1, 1,
-                                           seed=0),
-                         name="Weights2")
-        b1 = tf.Variable(tf.zeros([nb_hidden_nodes]), name="Biases1")
-        b2 = tf.Variable(tf.zeros([nb_classes]), name="Biases2")
-        activation2 = tf.sigmoid(tf.matmul(input_, w1) + b1)
-        hypothesis = tf.nn.softmax(tf.matmul(activation2, w2) + b2)
-        cross_entropy = -tf.reduce_sum(target * tf.log(hypothesis))
-        train_step = tf.train.GradientDescentOptimizer(0.1).minimize(cross_entropy)
 
-        correct_prediction = tf.equal(tf.argmax(hypothesis, 1), tf.argmax(target, 1))
+        dense1 = tf.layers.dense(inputs=input_, units=nb_hidden_nodes, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+        logits = tf.layers.dense(inputs=dense1, units=1, activation=None, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+        loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=target, logits=logits)
+
+        correct_prediction = tf.equal(tf.argmax(tf.nn.softmax(logits), 1), tf.argmax(target, 1))
+
         accuracy_op = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+        train_step = tf.train.AdagradOptimizer(0.05).minimize(loss)
 
         # Start training
         init = tf.global_variables_initializer()
