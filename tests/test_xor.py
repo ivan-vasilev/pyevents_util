@@ -28,7 +28,7 @@ class TestXor(unittest.TestCase):
     def _test_event_logger(self):
         MongoDBSequenceLog(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data' and 'phase' in event and event['phase'].endswith('_unordered'))
 
-        training_iterations = 100
+        training_iterations = 50
 
         AlgoPhaseEventsOrder(phases=[(ml_phase.TRAINING, training_iterations), (ml_phase.TESTING, 1), (None, 0)])
 
@@ -41,9 +41,13 @@ class TestXor(unittest.TestCase):
                                 name="target")
         nb_hidden_nodes = 4
 
-        dense1 = tf.layers.dense(inputs=input_, units=nb_hidden_nodes, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+        dense1 = tf.layers.dense(inputs=input_, units=nb_hidden_nodes, activation=None, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-        logits = tf.layers.dense(inputs=dense1, units=1, activation=None, kernel_initializer=tf.contrib.layers.xavier_initializer())
+        bn1 = tf.layers.batch_normalization(dense1, axis=1)
+
+        a1 = tf.nn.relu(bn1)
+
+        logits = tf.layers.dense(inputs=a1, units=1, activation=None, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
         loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=target, logits=logits)
 
@@ -96,7 +100,7 @@ class TestXor(unittest.TestCase):
         tf.reset_default_graph()
 
     def _test_event_provider(self):
-        training_iterations = 100
+        training_iterations = 50
 
         AlgoPhaseEventsOrder(phases=[(ml_phase.TRAINING, training_iterations), (ml_phase.TESTING, 1), (None, 0)])
 

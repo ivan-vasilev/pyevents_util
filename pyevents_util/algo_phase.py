@@ -54,7 +54,7 @@ class AlgoPhaseEventsOrder(object, metaclass=events.GlobalRegister):
         self.phases = phases
         self.phase_suffix = phase_suffix
 
-        self.lock = threading.RLock()
+        self._lock = threading.RLock()
 
         self.event_queues = {p[0]: queue.Queue() for p in phases}
 
@@ -72,7 +72,7 @@ class AlgoPhaseEventsOrder(object, metaclass=events.GlobalRegister):
 
             self.start_generator()
 
-            with self.lock:
+            with self._lock:
                 phase = event['phase']
 
                 self.phases_count[phase] += 1
@@ -91,23 +91,24 @@ class AlgoPhaseEventsOrder(object, metaclass=events.GlobalRegister):
         return event
 
     def start_generator(self):
-        if self.thread is None:
-            self.phases_queue.put(self.phases[0][0])
+        with self._lock:
+            if self.thread is None:
+                self.phases_queue.put(self.phases[0][0])
 
-            def events_generator():
-                while True:
-                    phase = self.phases_queue.get()
+                def events_generator():
+                    while True:
+                        phase = self.phases_queue.get()
 
-                    if phase is None:
-                        break
+                        if phase is None:
+                            break
 
-                    for i in range(self.phases[[p[0] for p in self.phases].index(phase)][1]):
-                        event = self.event_queues[phase].get().copy()
-                        event['phase'] = phase
-                        self.generator(event)
-                        self.event_queues[phase].task_done()
+                        for i in range(self.phases[[p[0] for p in self.phases].index(phase)][1]):
+                            event = self.event_queues[phase].get().copy()
+                            event['phase'] = phase
+                            self.generator(event)
+                            self.event_queues[phase].task_done()
 
-                    self.phases_queue.task_done()
+                        self.phases_queue.task_done()
 
-            self.thread = threading.Thread(target=events_generator, daemon=True)
-            self.thread.start()
+                self.thread = threading.Thread(target=events_generator, daemon=True)
+                self.thread.start()
