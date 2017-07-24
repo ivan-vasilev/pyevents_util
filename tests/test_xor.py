@@ -130,34 +130,18 @@ class TestXor(unittest.TestCase):
         with tf.Session() as sess:
             sess.run(init)
 
-            e1 = threading.Event()
             e2 = threading.Event()
 
             # training phase
             training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=ml_phase.TRAINING)
 
-            # testing phase
-            class WaitingAlgoPhase(AlgoPhase):
-                def process(self, data):
-                    e1.wait()
-                    super().process(data)
+            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
 
-            testing_phase = WaitingAlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
-
-            evaluations = {'accuracy': -1, 'training_iterations': -1, 'testing_iterations': -1}
-
-            @events.listener
-            def end_training_listener(event):
-                if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TRAINING:
-                    evaluations['training_iterations'] = event['iteration']
-
-                    if event['iteration'] == training_iterations:
-                        e1.set()
+            evaluations = {'accuracy': -1}
 
             @events.listener
             def end_testing_listener(event):
                 if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TESTING:
-                    evaluations['testing_iterations'] = event['iteration']
                     evaluations['accuracy'] = event['model_output']
                     e2.set()
 
@@ -166,9 +150,7 @@ class TestXor(unittest.TestCase):
             e2.wait()
 
             self.assertEqual(training_phase._iteration, training_iterations)
-            self.assertEqual(evaluations['training_iterations'], training_iterations)
             self.assertEqual(testing_phase._iteration, 1)
-            self.assertEqual(evaluations['testing_iterations'], 1)
             self.assertEqual(evaluations['accuracy'], 1)
 
         tf.reset_default_graph()
