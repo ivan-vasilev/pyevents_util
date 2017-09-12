@@ -1,4 +1,6 @@
+import logging
 import pickle
+import threading
 import uuid
 from typing import Callable
 
@@ -6,9 +8,8 @@ import pymongo
 from bson.binary import Binary
 from bson.errors import BSONError
 
-import pyevents_util.mongodb.util as mongoutil
 import pyevents.events as events
-import logging
+import pyevents_util.mongodb.util as mongoutil
 
 
 class MongoDBSequenceLog(object, metaclass=events.GlobalRegister):
@@ -17,6 +18,8 @@ class MongoDBSequenceLog(object, metaclass=events.GlobalRegister):
     def __init__(self, mongo_collection, accept_for_serialization: Callable, group_id=None, encoder: Callable = None):
 
         self.collection = mongo_collection
+
+        self._lock = threading.RLock()
 
         self.group_id = group_id if group_id is not None else uuid.uuid4()
 
@@ -33,14 +36,15 @@ class MongoDBSequenceLog(object, metaclass=events.GlobalRegister):
         self._encoder = encoder if encoder is not None else mongoutil.default_encoder
 
     def store(self, obj):
-        try:
-            self.collection.insert_one({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'obj': obj if self._encoder is None else self._encoder(obj)})
-            logging.getLogger(__name__).debug("Log json event")
-        except (BSONError, TypeError):
-            self.collection.insert_one({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'obj': Binary(pickle.dumps(obj))})
-            logging.getLogger(__name__).debug("Failed to serialize json. Falling back to binary serialization")
+        with self._lock:
+            try:
+                self.collection.insert_one({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'obj': obj if self._encoder is None else self._encoder(obj)})
+                logging.getLogger(__name__).debug("Log json event")
+            except (BSONError, TypeError):
+                self.collection.insert_one({'group_id': self.group_id, 'sequence_id': self._sequence_id, 'obj': Binary(pickle.dumps(obj))})
+                logging.getLogger(__name__).debug("Failed to serialize json. Falling back to binary serialization")
 
-        self._sequence_id += 1
+            self._sequence_id += 1
 
         self.object_stored(obj)
 
