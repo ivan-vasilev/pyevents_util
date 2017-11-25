@@ -1,4 +1,4 @@
-# Utilities for PyEvents
+# Utilities for pyevents
 
 Some utilities for the [pyevents](https://github.com/ivan-vasilev/pyevents)
  library. Currently you can:
