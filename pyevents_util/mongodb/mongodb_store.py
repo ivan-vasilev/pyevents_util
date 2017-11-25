@@ -1,10 +1,12 @@
-from pyevents_util.mongodb.util import *
+import logging
+from typing import Callable
+
 import pymongo
-import pyevents.events as events
 from bson.binary import Binary
 from bson.errors import BSONError
-from typing import Callable
-import logging
+
+import pyevents.events as events
+from pyevents_util.mongodb.util import *
 
 
 class MongoDBStore(object, metaclass=events.GlobalRegister):

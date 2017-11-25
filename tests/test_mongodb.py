@@ -1,4 +1,3 @@
-import threading
 import unittest
 
 from pyevents_util.mongodb.mongodb_sequence_log import *

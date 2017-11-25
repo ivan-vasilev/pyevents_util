@@ -5,7 +5,6 @@ import tensorflow as tf
 from pyevents_util import ml_phase
 from pyevents_util.algo_phase import *
 from pyevents_util.mongodb.mongodb_sequence_log import *
-import numpy as np
 
 
 class TestXor(unittest.TestCase):
@@ -158,6 +157,7 @@ class TestXor(unittest.TestCase):
     def tearDown(self):
         self.client.drop_database('test_db')
         self.client = None
+
 
 if __name__ == '__main__':
     unittest.main()
