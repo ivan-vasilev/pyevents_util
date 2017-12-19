@@ -73,7 +73,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['pyevents==0.0.1'],
+    install_requires=['pyevents==0.0.1', 'pymongo', 'numpy', 'tensorflow'],
 
     dependency_links=[
         "git+https://github.com/ivan-vasilev/pyevents#egg=pyevents-0.0.1"
