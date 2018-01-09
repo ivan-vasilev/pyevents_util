@@ -5,14 +5,13 @@ import pymongo
 from bson.binary import Binary
 from bson.errors import BSONError
 
-import pyevents.events as events
 from pyevents_util.mongodb.util import *
 
 
-class MongoDBStore(object, metaclass=events.GlobalRegister):
+class MongoDBStore(object):
     """Save object manager based on accept_event_function criteria"""
 
-    def __init__(self, mongo_collection, accept_for_serialization: Callable, encoder: Callable = None, default_listeners=None):
+    def __init__(self, mongo_collection, accept_for_serialization: Callable, encoder: Callable = None, listeners=None):
 
         self._mongo_collection = mongo_collection
 
@@ -20,8 +19,8 @@ class MongoDBStore(object, metaclass=events.GlobalRegister):
 
         self._encoder = encoder if encoder is not None else default_encoder
 
-        if default_listeners is not None:
-            default_listeners += self.onevent
+        self.listeners = listeners
+        self.listeners += self.on_event
 
     @property
     def collection(self):
@@ -30,8 +29,7 @@ class MongoDBStore(object, metaclass=events.GlobalRegister):
 
         return self._mongo_collection
 
-    @events.listener
-    def onevent(self, event):
+    def on_event(self, event):
         if self.accept_for_serialization(event):
             self.store(event['data'])
 
@@ -48,11 +46,7 @@ class MongoDBStore(object, metaclass=events.GlobalRegister):
             self.collection.replace_one({'_id': _id}, {'binary_data': Binary(pickle.dumps(obj))}, upsert=True)
             logging.getLogger(__name__).debug("Failed to serialize json. Falling back to binary serialization")
 
-        self.object_stored(obj)
-
-    @events.after
-    def object_stored(self, obj):
-        return {'type': 'store_object', 'data': obj}
+        self.listeners({'type': 'store_object', 'data': obj})
 
     @staticmethod
     def restore(mongo_collection, _id):

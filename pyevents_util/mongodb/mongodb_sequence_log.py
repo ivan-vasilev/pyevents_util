@@ -8,14 +8,13 @@ import pymongo
 from bson.binary import Binary
 from bson.errors import BSONError
 
-import pyevents.events as events
 import pyevents_util.mongodb.util as mongoutil
 
 
-class MongoDBSequenceLog(object, metaclass=events.GlobalRegister):
+class MongoDBSequenceLog(object):
     """Log events based on accept_event_function criteria"""
 
-    def __init__(self, mongo_collection, accept_for_serialization: Callable, group_id=None, encoder: Callable = None):
+    def __init__(self, mongo_collection, accept_for_serialization: Callable, listeners, group_id=None, encoder: Callable = None):
 
         self.collection = mongo_collection
 
@@ -35,6 +34,10 @@ class MongoDBSequenceLog(object, metaclass=events.GlobalRegister):
 
         self._encoder = encoder if encoder is not None else mongoutil.default_encoder
 
+        self.listeners = listeners
+
+        self.listeners += self.onevent
+
     def store(self, obj):
         with self._lock:
             try:
@@ -46,35 +49,25 @@ class MongoDBSequenceLog(object, metaclass=events.GlobalRegister):
 
             self._sequence_id += 1
 
-        self.object_stored(obj)
+        self.listeners({'type': 'store_object', 'data': obj})
 
-    @events.listener
     def onevent(self, event):
         if self.accept_for_serialization(event):
             self.store(event)
 
-    @events.after
-    def object_stored(self, obj):
-        return {'type': 'store_object', 'data': obj}
 
-
-class MongoDBSequenceProvider(object, metaclass=events.GlobalRegister):
+class MongoDBSequenceProvider(object):
     """Fire logged events"""
 
-    def __init__(self, mongo_collection, group_id, decoder: Callable = None):
-
+    def __init__(self, mongo_collection, group_id, listeners, decoder: Callable = None):
         self._mongo_collection = mongo_collection
-
         self.group_id = group_id
+        self.listeners = listeners
 
         self._decoder = decoder if decoder is not None else mongoutil.default_decoder
-
-    @events.after
-    def fire_event(self, event):
-        return event
 
     def __call__(self):
         for e in self._mongo_collection.find({'group_id': self.group_id}).sort('sequence_id', pymongo.ASCENDING):
             element = e['obj'] if self._decoder is None else self._decoder(e['obj'])
             logging.debug("Sequence " + str(element))
-            self.fire_event(element)
+            self.listeners(element)

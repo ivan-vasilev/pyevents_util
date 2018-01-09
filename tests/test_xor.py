@@ -2,6 +2,7 @@ import unittest
 
 import tensorflow as tf
 
+from pyevents.simple_events import *
 from pyevents_util import ml_phase
 from pyevents_util.algo_phase import *
 from pyevents_util.mongodb.mongodb_sequence_log import *
@@ -16,20 +17,16 @@ class TestXor(unittest.TestCase):
         self.client = pymongo.MongoClient()
 
     def test_xor(self):
-        events.use_global_event_bus()
-
         self._test_event_logger()
-        events.reset()
-        events.use_global_event_bus()
-
         self._test_event_provider()
 
     def _test_event_logger(self):
-        MongoDBSequenceLog(self.client.test_db.events, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data' and 'phase' in event and event['phase'].endswith('_unordered'))
+        listeners = AsyncListeners()
+        MongoDBSequenceLog(self.client.test_db.events, listeners=listeners, group_id='test_xor_group', accept_for_serialization=lambda event: event['type'] == 'data' and 'phase' in event and event['phase'].endswith('_unordered'))
 
         training_iterations = 50
 
-        AlgoPhaseEventsOrder(phases=[(ml_phase.TRAINING, training_iterations), (ml_phase.TESTING, 1), (None, 0)])
+        AlgoPhaseEventsOrder(phases=[(ml_phase.TRAINING, training_iterations), (ml_phase.TESTING, 1), (None, 0)], listeners=listeners)
 
         # network definition
         input_ = tf.placeholder(tf.float32,
@@ -61,7 +58,6 @@ class TestXor(unittest.TestCase):
         with tf.Session() as sess:
             sess.run(init)
 
-            @events.after
             def xor_data_provider(phase):
                 return {'data': {'input:0': [[0, 0], [0, 1], [1, 0], [1, 1]],
                                  'target:0': [[0], [1], [1], [0]]},
@@ -69,26 +65,27 @@ class TestXor(unittest.TestCase):
                         'type': 'data'}
 
             # training phase
-            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=ml_phase.TRAINING)
+            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=ml_phase.TRAINING, listeners=listeners)
 
             # testing phase
-            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
+            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING, listeners=listeners)
 
             evaluations = {'accuracy': -1}
 
             e2 = threading.Event()
 
-            @events.listener
             def end_testing_listener(event):
                 if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TESTING:
                     evaluations['testing_iterations'] = event['iteration']
                     evaluations['accuracy'] = event['model_output']
                     e2.set()
 
-            for i in range(training_iterations):
-                xor_data_provider(ml_phase.TRAINING)
+            listeners += end_testing_listener
 
-            xor_data_provider(ml_phase.TESTING)
+            for i in range(training_iterations):
+                listeners(xor_data_provider(ml_phase.TRAINING))
+
+            listeners(xor_data_provider(ml_phase.TESTING))
 
             e2.wait()
 
@@ -101,7 +98,9 @@ class TestXor(unittest.TestCase):
     def _test_event_provider(self):
         training_iterations = 50
 
-        AlgoPhaseEventsOrder(phases=[(ml_phase.TRAINING, training_iterations), (ml_phase.TESTING, 1), (None, 0)])
+        listeners = AsyncListeners()
+
+        AlgoPhaseEventsOrder(phases=[(ml_phase.TRAINING, training_iterations), (ml_phase.TESTING, 1), (None, 0)], listeners=listeners)
 
         # network definition
         input_ = tf.placeholder(tf.float32,
@@ -132,19 +131,20 @@ class TestXor(unittest.TestCase):
             e2 = threading.Event()
 
             # training phase
-            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=ml_phase.TRAINING)
+            training_phase = AlgoPhase(model=lambda x: sess.run(train_step, feed_dict=x), phase=ml_phase.TRAINING, listeners=listeners)
 
-            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING)
+            testing_phase = AlgoPhase(model=lambda x: accuracy_op.eval(feed_dict=x, session=sess), phase=ml_phase.TESTING, listeners=listeners)
 
             evaluations = {'accuracy': -1}
 
-            @events.listener
             def end_testing_listener(event):
                 if event['type'] == 'after_iteration' and event['phase'] == ml_phase.TESTING:
                     evaluations['accuracy'] = event['model_output']
                     e2.set()
 
-            MongoDBSequenceProvider(self.client.test_db.events, group_id='test_xor_group')()
+            listeners += end_testing_listener
+
+            MongoDBSequenceProvider(self.client.test_db.events, group_id='test_xor_group', listeners=listeners)()
 
             e2.wait()
 
