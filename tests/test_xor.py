@@ -2,7 +2,7 @@ import unittest
 
 import tensorflow as tf
 
-from pyevents.simple_events import *
+from pyevents.events import *
 from pyevents_util import ml_phase
 from pyevents_util.algo_phase import *
 from pyevents_util.mongodb.mongodb_sequence_log import *

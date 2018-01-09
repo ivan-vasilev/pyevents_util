@@ -1,6 +1,6 @@
 import unittest
 
-from pyevents.simple_events import *
+from pyevents.events import *
 from pyevents_util.mongodb.mongodb_sequence_log import *
 from pyevents_util.mongodb.mongodb_store import *
 
