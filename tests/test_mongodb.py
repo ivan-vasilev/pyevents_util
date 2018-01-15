@@ -12,11 +12,8 @@ class TestMongoDB(unittest.TestCase):
 
     def setUp(self):
         self.client = pymongo.MongoClient()
-        events.reset()
 
     def test_event_log_with_dict(self):
-        events.use_global_event_bus()
-
         listeners = AsyncListeners()
         log = MongoDBSequenceLog(self.client.test_db.events, accept_for_serialization=lambda x: True if x['type'] == 'data' else False, listeners=listeners, group_id=None)
 
@@ -85,7 +82,7 @@ class TestMongoDB(unittest.TestCase):
         self.assertTrue(listener_called['called'])
 
     def test_event_log_with_composite_objects(self):
-        global_listeners = events.AsyncListeners()
+        global_listeners = AsyncListeners()
 
         log = MongoDBSequenceLog(self.client.test_db.events, accept_for_serialization=lambda x: True if isinstance(x, TestMongoDB.TestLogComposite) else False, listeners=global_listeners,  group_id=None)
 
