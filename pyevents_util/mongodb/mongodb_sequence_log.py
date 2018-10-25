@@ -26,7 +26,7 @@ class MongoDBSequenceLog(object):
 
         if group_id is not None:
             existing_events = self.collection.find({'group_id': group_id}).sort('sequence_id', pymongo.DESCENDING).limit(1)
-            if existing_events.count() > 0:
+            if existing_events.collection.estimated_document_count() > 0:
                 e = next(existing_events)
                 self._sequence_id = e['sequence_id'] + 1
 
